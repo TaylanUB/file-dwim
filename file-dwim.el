@@ -1,9 +1,11 @@
 ;;; file-dwim.el --- Do What I Mean for files.
 
-;; Copyright (C) 2013  Taylan Ulrich B.
+;; Copyright (C) 2013, 2015  Taylan Ulrich Bayırlı/Kammer
 
-;; Author: Taylan Ulrich B. <taylanbayirli@gmail.com>
+;; Author: Taylan Ulrich Bayırlı/Kammer <taylanbayirli@gmail.com>
+;; Version: 1.0
 ;; Keywords: extensions, files
+;; URL: https://github.com/TaylanUB/file-dwim
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -23,11 +25,47 @@
 ;; Do any action on a file, according to a dispatch-table.  E.g. specify that
 ;; media files should be played, directories opened in dired, etc..  This could
 ;; be bound to RET in Dired, or used to replace `find-file'.
+;;
+;; Example configuration:
+;;
+;; (define-key dired-mode-map (kbd "RET") 'file-dwim-dired)
+;;
+;; (defun file-has-extension (file exts)
+;;   (string-match-p
+;;    (rx-to-string `(: "." (or ,@exts) eos))
+;;    file))
+;;
+;; (defun audio-file-p (file)
+;;   (file-has-extension file '("mp3" "flac" "aac" "wav")))
+;;
+;; (defun video-file-p (file)
+;;   (file-has-extension
+;;    file '("mkv" "mp4" "wmv" "webm" "avi" "mpg" "mov" "flv" "mts")))
+;;
+;; (defun guitarpro-file-p (file)
+;;   (file-has-extension file '("gp3" "gp4")))
+;;
+;; (defun play-audio-file (file)
+;;   (shell-command (concat "my-audio-player " (shell-quote-argument file))))
+;;
+;; (defun play-video-file (file)
+;;   (shell-command (concat "my-video-player " (shell-quote-argument file))))
+;;
+;; (defun open-guitarpro-file (file)
+;;   (async-shell-command (concat "tuxguitar " (shell-quote-argument file))))
+;;
+;; (dolist (entry
+;;          '((audio-file-p . play-audio-file)
+;;            (video-file-p . play-video-file)
+;;            (guitarpro-file-p . open-guitarpro-file)
+;;            ))
+;;   (add-to-list 'file-dwim-action-list entry))
 
 ;;; Code:
 
 (eval-when-compile
-  (require 'cl))
+  (require 'cl)
+  (declare-function dired-get-file-for-visit "dired.el" ()))
 
 (defgroup file-dwim nil
   "Do What I Mean for files."
@@ -59,6 +97,7 @@ are applicable."
   :type 'function
   :group 'file-dwim)
 
+;;;###autoload
 (defun file-dwim (file)
   "Act on a file according to `file-dwim-action-list'."
   (interactive "FFile: ")
@@ -83,6 +122,12 @@ are applicable."
        (t
         (error "Bad action in `file-dwim-action-list': %S" action))))
     (funcall file-dwim-default-action file)))
+
+;;;###autoload
+(defun file-dwim-dired ()
+  "In Dired, use `file-dwim' on a file"
+  (interactive)
+  (file-dwim (dired-get-file-for-visit)))
 
 (provide 'file-dwim)
 ;;; file-dwim.el ends here
