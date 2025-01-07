@@ -1,9 +1,8 @@
 ;;; file-dwim.el --- Do What I Mean for files.
 
-;; Copyright (C) 2013, 2015  Taylan Ulrich Bayırlı/Kammer
+;; Copyright (C) 2025  Taylan Kammer
 
-;; Author: Taylan Ulrich Bayırlı/Kammer <taylanbayirli@gmail.com>
-;; Version: 1.0
+;; Author: Taylan Kammer <taylan.kammer@gmail.com>
 ;; Keywords: extensions, files
 ;; URL: https://github.com/TaylanUB/file-dwim
 
@@ -23,7 +22,7 @@
 ;;; Commentary:
 
 ;; Do any action on a file, according to a dispatch-table.  E.g. specify that
-;; media files should be played, directories opened in dired, etc..  This could
+;; media files should be played, directories opened in Dired, etc..  This could
 ;; be bound to RET in Dired, or used to replace `find-file'.
 ;;
 ;; Example configuration:
@@ -64,7 +63,7 @@
 ;;; Code:
 
 (eval-when-compile
-  (require 'cl)
+  (require 'cl-macs)
   (declare-function dired-get-file-for-visit "dired.el" ()))
 
 (defgroup file-dwim nil
@@ -72,21 +71,26 @@
   :group 'files)
 
 (defcustom file-dwim-action-list nil
-  "A list of action-specifiers for file-types.
+  "A list of action-specifiers for matching files.
 
-Each entry must be either a cons cell or a unary function.
+Each element of the list must be either a cons cell or a unary
+function.  They are tested in succession until one matches.
 
-If it's a cons cell, the car must either be a regexp or a
-predicate, and the cdr an unary function that will be called with
-a FILE argument.
+If the entry is a cons cell, the car must either be a string, a
+list of strings, or a unary predicate, and the cdr must be a
+unary function that will be called on the file should the car
+match.  This matching is done as follows:
 
-If it's a function, it will be called with a FILE argument and
-should return t to indicate that it matched, and can do its
-action at the same time.
+If the car is a string or list of strings, it is tested whether
+the file's extension is that string or one of the strings in the
+list.  The matching is case insensitive.  If it's a predicate,
+it's called on the file.
 
-A function-entry could act on a file but return nil anyway to
-allow further actions."
-  :type '(repeat (or (cons (or string function)
+If the whole entry is a unary function, it's called on the file
+and should return t to indicate whether it matched, and can do
+its action at the same time.  As a hack, such an entry could act
+on the file but return nil anyway to allow further action."
+  :type '(repeat (or (cons (or string list function)
                            function)
                      function))
   :group 'file-dwim)
@@ -101,24 +105,28 @@ are applicable."
 (defun file-dwim (file)
   "Act on a file according to `file-dwim-action-list'."
   (interactive "FFile: ")
-  (cl-block actions
+  (cl-block matches
     (dolist (action file-dwim-action-list)
       (cond
        ((consp action)
         (let ((test (car action))
-              (function (cdr action)))
+              (fn (cdr action)))
           (cond
            ((stringp test)
-            (when (string-match-p test file)
-              (return-from actions (funcall function file))))
+            (when (string= test (file-name-extension file))
+              (cl-return-from matches (funcall fn file))))
+           ((listp test)
+            (dolist (extension test)
+              (when (string= extension (file-name-extension file))
+                (cl-return-from matches (funcall fn file)))))
            ((functionp test)
             (when (funcall test file)
-              (return-from actions (funcall function file))))
+              (cl-return-from matches (funcall fn file))))
            (t
             (error "Bad test in `file-dwim-action-list': %S" action)))))
        ((functionp action)
         (if (funcall action file)
-            (return-from actions)))
+            (cl-return-from matches)))
        (t
         (error "Bad action in `file-dwim-action-list': %S" action))))
     (funcall file-dwim-default-action file)))
